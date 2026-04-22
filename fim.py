@@ -3,6 +3,7 @@ import sqlite3
 import hashlib
 import os, time
 from pathlib import Path
+import configparser
 
 
 # Function to walk through the disk, grabbing file paths. These paths will be used as the keys, with hashing used to obtain the values.
@@ -11,6 +12,7 @@ def file_traverse(path):
     print("Grabbing files...")
     for root, dirs, files in os.walk(path):
         for f in files:
+            print(f)
             files_list.append((os.path.join(root, f)))
 
     return files_list
@@ -18,15 +20,25 @@ def file_traverse(path):
 
 # MD5 Hash creation
 def hashing():
-    # Directory used: current is testing
-    files_list = file_traverse("/home/rylan/Test_dir/")
+    config = configparser.ConfigParser()
+    config.read("config.ini")
+    target_dir = config.get("SETTINGS", "target", fallback="Test_dir").strip('"')
     # Easier to use a list, and pass through a dict for SQL integration
     hash_dict = []
+
+    # Now call it
+    files_list = file_traverse(target_dir)
+
+    print("Beginning hashing...")
     for file in files_list:
-        with open(Path(file), "rb") as file_obj:
-            file_contents = file_obj.read()
-            md5_hash = hashlib.md5(file_contents).hexdigest()
-        hash_dict.append({"filepath": file, "hash": md5_hash})
+        try:
+            with open(Path(file), "rb") as file_obj:
+                file_contents = file_obj.read()
+                md5_hash = hashlib.md5(file_contents).hexdigest()
+                print(f"File: {file}, Hash: {md5_hash}")
+            hash_dict.append({"filepath": file, "hash": md5_hash})
+        except FileNotFoundError:
+            pass
     return hash_dict
 
 
@@ -86,7 +98,6 @@ if __name__ == "__main__":
 
     print("Ready")
     print("----------")
-    print("Conducting hashing...")
     dic = hashing()
     print("Hashing complete.")
     print()
