@@ -4,6 +4,7 @@ import hashlib
 import os, time
 from pathlib import Path
 import configparser
+import subprocess
 
 
 # Function to walk through the disk, grabbing file paths. These paths will be used as the keys, with hashing used to obtain the values.
@@ -90,10 +91,25 @@ def file_alerts(db_pre_state, dict):
         elif db_pre_state[filepath] != pre_hash:
             # It's changed
             changed_files.append(filepath)
-    print("Files that have changed: ", len(changed_files))
-    print(changed_files)
-    print("New, added files: ", len(new_files))
-    print(new_files)
+    config = configparser.ConfigParser()
+    config.read("config.ini")
+    notification_toggle = config.get("SETTINGS", "noti", fallback="False")
+    notification_server = config.get("SETTINGS", "server", fallback=None)
+    if notification_toggle == "True":
+        print("Files that have changed: ", len(changed_files))
+        print(changed_files)
+
+        if len(changed_files) > 0:
+            print(changed_files)
+            subprocess.run(
+                [
+                    "curl",
+                    "-d",
+                    f"FIM: Files have been changed: {changed_files}",
+                    notification_server,
+                ]
+            )
+        print("New files in the DB: ", new_files)
 
 
 if __name__ == "__main__":
@@ -123,4 +139,3 @@ if __name__ == "__main__":
     file_alerts(db_pre_state, dic)
     end = time.time()
     print("Time: ", end - start)
-    print(f"Files added: {file_count}")
