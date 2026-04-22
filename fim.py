@@ -58,7 +58,8 @@ def database(dictionary):
         # Grab the file count in db before to compare later
         pre_file_count = cursor.execute(""" SELECT COUNT(*) FROM files""")
         pre_file_count = int(str(pre_file_count.fetchall()[0])[1:-2])
-        print("DEBUG: pre_file_count")
+        cursor.execute(""" SELECT filepath, hash FROM files """)
+        db_pre_state = {row[0]: row[1] for row in cursor.fetchall()}
         connection.commit()
         sql = """ INSERT OR REPLACE INTO files (filepath, hash)
         VALUES (:filepath, :hash)
@@ -73,13 +74,28 @@ def database(dictionary):
     connection.close()
 
     # Return changed file count
-    return post_file_count - pre_file_count
+    return db_pre_state, post_file_count - pre_file_count
 
 
-# TODO: Make program interactive with either
-# - Paths as input
-# - Config file stating path to traverse
-# Also add actual comparison function, to be used as a recurring job
+def file_alerts(db_pre_state, dict):
+    new_files = []
+    changed_files = []
+    for file_data in dict:
+        # loop through lists in dict
+        filepath = file_data["filepath"]
+        pre_hash = file_data["hash"]
+        if filepath not in db_pre_state:
+            # It's a new file
+            new_files.append(filepath)
+        elif db_pre_state[filepath] != pre_hash:
+            # It's changed
+            changed_files.append(filepath)
+    print("Files that have changed: ", len(changed_files))
+    print(changed_files)
+    print("New, added files: ", len(new_files))
+    print(new_files)
+
+
 if __name__ == "__main__":
     print("""
 ░▒▓████████▓▒░▒▓█▓▒░      ░▒▓██████████████▓▒░  
@@ -102,9 +118,9 @@ if __name__ == "__main__":
     print("Hashing complete.")
     print()
     print("Updating database...")
-    file_count = database(dic)
+    db_pre_state, file_count = database(dic)
     print("Database updated")
-
+    file_alerts(db_pre_state, dic)
     end = time.time()
     print("Time: ", end - start)
     print(f"Files added: {file_count}")
