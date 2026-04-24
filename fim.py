@@ -11,10 +11,22 @@ import subprocess
 def file_traverse(path):
     files_list = []
     print("Grabbing files...")
+    config = configparser.ConfigParser()
+    config.read("config.ini")
+    excludes_str = config.get("SETTINGS", "excludes", fallback=None)
+    if excludes_str != None:
+        excludes = [os.path.normpath(e.strip()) for e in excludes_str.split(",")]
+    else:
+        excludes = []
     for root, dirs, files in os.walk(path):
+        for d in list(dirs):
+            full_dir_path = os.path.join(root, d)
+            if full_dir_path in excludes:
+                dirs.remove(d)
         for f in files:
-            print(f)
-            files_list.append((os.path.join(root, f)))
+            print(os.path.join(root, f))
+            if os.path.isfile(os.path.join(root, f)):
+                files_list.append((os.path.join(root, f)))
 
     return files_list
 
@@ -24,6 +36,7 @@ def hashing():
     config = configparser.ConfigParser()
     config.read("config.ini")
     target_dir = config.get("SETTINGS", "target", fallback="Test_dir").strip('"')
+
     # Easier to use a list, and pass through a dict for SQL integration
     hash_dict = []
 
@@ -34,11 +47,12 @@ def hashing():
     for file in files_list:
         try:
             with open(Path(file), "rb") as file_obj:
-                file_contents = file_obj.read()
-                md5_hash = hashlib.md5(file_contents).hexdigest()
-                print(f"File: {file}, Hash: {md5_hash}")
-            hash_dict.append({"filepath": file, "hash": md5_hash})
-        except FileNotFoundError:
+                if file_obj:
+                    file_contents = file_obj.read()
+                    md5_hash = hashlib.md5(file_contents).hexdigest()
+                    print(f"File: {file}, Hash: {md5_hash}")
+                    hash_dict.append({"filepath": file, "hash": md5_hash})
+        except (FileNotFoundError, OSError):
             pass
     return hash_dict
 
@@ -96,9 +110,6 @@ def file_alerts(db_pre_state, dict):
     notification_toggle = config.get("SETTINGS", "noti", fallback="False")
     notification_server = config.get("SETTINGS", "server", fallback=None)
     if notification_toggle == "True":
-        print("Files that have changed: ", len(changed_files))
-        print(changed_files)
-
         if len(changed_files) > 0:
             print(changed_files)
             subprocess.run(
@@ -109,7 +120,6 @@ def file_alerts(db_pre_state, dict):
                     notification_server,
                 ]
             )
-        print("New files in the DB: ", new_files)
 
 
 if __name__ == "__main__":
